@@ -36,7 +36,7 @@ async fn mirror_latency(h: &str) -> Option<Duration> {
         let mut times = Vec::new();
         for seq_cnt in 0..5 {
             match pinger.ping(seq_cnt).await {
-                Ok((reply, dur)) => {
+                Ok((_reply, dur)) => {
                     debug!("time={:?}", dur);
                     // debug!("{} bytes from {}: icmp_seq={} ttl={:?} time={:?}",
                     //    reply.size, reply.source, reply.sequence, reply.ttl, dur);
@@ -70,7 +70,7 @@ fn rewrite_mirror(p: &Path, m: &Url, known_m: &[Url]) {
         Ok(r) => {
             let mut dump: Vec<u8> = Vec::new();
             let _ = r.write_to(&mut dump);
-            let mut dump = unsafe { String::from_utf8_unchecked(dump) };
+            let dump = unsafe { String::from_utf8_unchecked(dump) };
             debug!(%dump);
             r
         }
@@ -122,7 +122,7 @@ fn rewrite_mirror(p: &Path, m: &Url, known_m: &[Url]) {
     }
 
     if let Err(e) = repo.write_to_file(p) {
-        warn!(?p, "Unable to write repo configuration");
+        warn!(?e, ?p, "Unable to write repo configuration");
     }
 }
 
