@@ -2,14 +2,14 @@
 #   /usr/lib/systemd/system/mirrormagic.service.d/custom.conf
 
 [Unit]
-Description=Mirror Magic ✨
+Description=Mirror Sorcerer 🧙 ✨
 After=chronyd.service ntpd.service network-online.target
 
 [Service]
 Type=oneshot
 User=root
-Environment=MIRROR_DEFS=/usr/share/mirrormagic/default.json
-ExecStart=/usr/sbin/mirrormagic -x
+Environment=MIRROR_DEFS=/usr/share/mirrorsorcerer/default.json
+ExecStart=/usr/sbin/mirrorsorcerer -x
 
 NoNewPrivileges=true
 PrivateTmp=true

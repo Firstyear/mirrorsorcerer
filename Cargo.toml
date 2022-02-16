@@ -1,12 +1,12 @@
 [package]
-name = "mirrormagic"
+name = "mirrorsorcerer"
 version = "0.1.0"
 edition = "2021"
 
-description = "Mirror Magic tool to Magically make OpenSUSE Mirrors Magic-er"
+description = "Mirror Sorcerer tool to magically make OpenSUSE mirror sources more magic-er"
 # documentation = "..."
 # homepage = "..."
-repository = "https://github.com/Firstyear/mirrormagic"
+repository = "https://github.com/Firstyear/mirrorsorcerer"
 readme = "README.md"
 license = "MPL-2.0"
 
