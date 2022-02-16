@@ -1,0 +1,26 @@
+# You should not need to edit this file. Instead, use a drop-in file as described in:
+#   /usr/lib/systemd/system/mirrormagic.service.d/custom.conf
+
+[Unit]
+Description=Mirror Magic ✨
+After=chronyd.service ntpd.service network-online.target
+
+[Service]
+Type=oneshot
+User=root
+Environment=MIRROR_DEFS=/usr/share/mirrormagic/default.json
+ExecStart=/usr/sbin/mirrormagic -x
+
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectHostname=true
+ProtectClock=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+MemoryDenyWriteExecute=true
+
+[Install]
+WantedBy=multi-user.target
