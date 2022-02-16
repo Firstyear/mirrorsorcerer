@@ -7,12 +7,15 @@ use std::path::PathBuf;
 use std::time::Duration;
 use structopt::StructOpt;
 use tracing::{debug, error, info, warn};
+use tracing_subscriber::prelude::*;
+use tracing_subscriber::{fmt, EnvFilter};
+
 use url::Url;
 
 // Given a file path, rewrite it's mirror.
 
 async fn mirror_latency(h: &str) -> Option<Duration> {
-    info!("Profiling - {} ...", h);
+    debug!(%h);
 
     let mut addrs: Vec<_> = format!("{}:443", h)
         .to_socket_addrs()
@@ -21,7 +24,7 @@ async fn mirror_latency(h: &str) -> Option<Duration> {
         .collect();
 
     while let Some(addr) = addrs.pop() {
-        debug!(?addr);
+        debug!(%h, ?addr);
 
         let mut pinger = match surge_ping::pinger(addr).await {
             Ok(p) => p,
@@ -54,12 +57,16 @@ async fn mirror_latency(h: &str) -> Option<Duration> {
 
         if times.len() < 3 {
             // Not enough times recorded.
+            info!("Profiling - {} - {} - insufficent data", h, addr);
             continue;
         }
 
         // Okay, we have times, lets goooooo
         let sum: Duration = times.iter().sum();
-        return Some(sum / times.len() as u32);
+        let rtt = sum / times.len() as u32;
+        info!("Profiling - {} - {} - time={:?}", h, addr, rtt);
+
+        return Some(rtt);
     }
 
     None
@@ -116,8 +123,7 @@ fn rewrite_mirror(p: &Path, m: &Url, known_m: &[Url]) {
         let _ = baseurl.set_host(m.host_str());
         let _ = baseurl.set_scheme(m.scheme());
 
-        debug!(%baseurl);
-
+        info!("🪄  updating repo {} -> {}", name.unwrap_or("global"), baseurl.as_str());
         sect.insert("baseurl", baseurl);
     }
 
@@ -143,8 +149,21 @@ struct Config {
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
-    tracing_subscriber::fmt::init();
-    info!("Mirror Magic ✨ ");
+    let fmt_layer = fmt::layer()
+        .with_level(true)
+        .with_target(false)
+        .without_time()
+    ;
+    let filter_layer = EnvFilter::try_from_default_env()
+        .or_else(|_| EnvFilter::try_new("info"))
+        .unwrap();
+
+    tracing_subscriber::registry()
+        .with(filter_layer)
+        .with(fmt_layer)
+        .init();
+
+    info!("✨ Mirror Sorcerer ✨ ");
 
     let config = Config::from_args();
 
