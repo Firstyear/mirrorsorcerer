@@ -52,7 +52,7 @@ async fn mirror_latency(h: &str) -> Option<Duration> {
             }
         };
 
-        pinger.timeout(Duration::from_secs(2));
+        pinger.timeout(Duration::from_millis(750));
 
         let mut times = Vec::new();
         for seq_cnt in 0..5 {
@@ -183,6 +183,9 @@ struct Config {
     #[structopt(short = "x")]
     /// Do it - profile mirrors and update repos. Without this, a dry-run is performed.
     doit: bool,
+    #[structopt(short = "1")]
+    /// One shot - don't persist and watch the repo directory. Useful in container pipelines.
+    oneshot: bool,
 }
 
 #[tokio::main(flavor = "current_thread")]
@@ -286,6 +289,10 @@ async fn main() {
     paths.iter().for_each(|p| {
         rewrite_mirror(p, &m, &known_m);
     });
+
+    if !config.oneshot {
+        return;
+    }
 
     // wait, if we have files to change, update them.
 
