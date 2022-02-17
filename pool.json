@@ -1,0 +1,10 @@
+{
+  "replaceable": [
+    "https://download.opensuse.org"
+  ],
+  "mirrors": [
+    "https://mirrorcache.opensuse.org",
+    "https://mirrorcache-au.opensuse.org",
+    "https://mirrorcache-us.opensuse.org"
+  ]
+}
