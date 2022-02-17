@@ -6,10 +6,11 @@ Description=Mirror Sorcerer 🧙 ✨
 After=chronyd.service ntpd.service network-online.target
 
 [Service]
-Type=oneshot
+Type=simple
 User=root
-Environment=MIRROR_DEFS=/usr/share/mirrorsorcerer/default.json
+Environment=MIRROR_DEFS=/usr/share/mirrorsorcerer/pool.json
 ExecStart=/usr/sbin/mirrorsorcerer -x
+KillSignal=SIGINT
 
 NoNewPrivileges=true
 PrivateTmp=true

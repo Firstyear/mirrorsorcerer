@@ -6,13 +6,31 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::time::Duration;
 use structopt::StructOpt;
+use tokio::{signal, task};
 use tracing::{debug, error, info, warn};
 use tracing_subscriber::prelude::*;
 use tracing_subscriber::{fmt, EnvFilter};
-
 use url::Url;
 
+use notify::{watcher, DebouncedEvent, RecursiveMode, Watcher};
+use std::sync::mpsc::{channel, Receiver};
+
 // Given a file path, rewrite it's mirror.
+
+fn inotify_watcher(rx: Receiver<DebouncedEvent>, m: Url, known_m: Vec<Url>) {
+    while let Ok(e) = rx.recv() {
+        debug!(?e);
+        match e {
+            DebouncedEvent::Create(path)
+            | DebouncedEvent::Write(path)
+            | DebouncedEvent::NoticeWrite(path) => {
+                rewrite_mirror(&path, &m, &known_m);
+            }
+            _ => {}
+        }
+    }
+    debug!("Stopping inotify_watcher");
+}
 
 async fn mirror_latency(h: &str) -> Option<Duration> {
     debug!(%h);
@@ -57,7 +75,7 @@ async fn mirror_latency(h: &str) -> Option<Duration> {
 
         if times.len() < 3 {
             // Not enough times recorded.
-            info!("Profiling - {} - {} - insufficent data", h, addr);
+            info!("Profiling - {} - {} - insufficient data", h, addr);
             continue;
         }
 
@@ -73,6 +91,13 @@ async fn mirror_latency(h: &str) -> Option<Duration> {
 }
 
 fn rewrite_mirror(p: &Path, m: &Url, known_m: &[Url]) {
+    if p.extension().and_then(|s| s.to_str()) != Some("repo") {
+        debug!(?p, "Ignoring");
+        return;
+    } else {
+        debug!("Inspecting {:?} ...", p);
+    }
+
     let mut repo = match ini::Ini::load_from_file(p) {
         Ok(r) => {
             let mut dump: Vec<u8> = Vec::new();
@@ -103,6 +128,14 @@ fn rewrite_mirror(p: &Path, m: &Url, known_m: &[Url]) {
 
         debug!(%baseurl);
 
+        if baseurl.host_str() == m.host_str()
+            && baseurl.port() == m.port()
+            && baseurl.scheme() == m.scheme()
+        {
+            debug!("No changes needed");
+            return;
+        }
+
         // Baseurl must be in the set of known mirrors that we are allowed to rewrite.
         let mut contains = false;
         for km in known_m {
@@ -123,7 +156,11 @@ fn rewrite_mirror(p: &Path, m: &Url, known_m: &[Url]) {
         let _ = baseurl.set_host(m.host_str());
         let _ = baseurl.set_scheme(m.scheme());
 
-        info!("🪄  updating repo {} -> {}", name.unwrap_or("global"), baseurl.as_str());
+        info!(
+            "🪄  updating repo {} -> {}",
+            name.unwrap_or("global"),
+            baseurl.as_str()
+        );
         sect.insert("baseurl", baseurl);
     }
 
@@ -135,6 +172,7 @@ fn rewrite_mirror(p: &Path, m: &Url, known_m: &[Url]) {
 #[derive(Debug, Deserialize)]
 struct MirrorDefinitions {
     mirrors: Vec<Url>,
+    replaceable: Vec<Url>,
 }
 
 #[derive(StructOpt)]
@@ -152,8 +190,7 @@ async fn main() {
     let fmt_layer = fmt::layer()
         .with_level(true)
         .with_target(false)
-        .without_time()
-    ;
+        .without_time();
     let filter_layer = EnvFilter::try_from_default_env()
         .or_else(|_| EnvFilter::try_new("info"))
         .unwrap();
@@ -167,34 +204,36 @@ async fn main() {
 
     let config = Config::from_args();
 
-    let mirrors = config
-        .mirror_definitions
-        .and_then(|p| {
-            fs::File::open(&p)
-                .map_err(|e| {
-                    warn!(?e, ?p, "Unable to open");
-                })
-                .ok()
-                .map(|f| BufReader::new(f))
-                .and_then(|rdr| {
-                    serde_json::from_reader(rdr)
-                        .map_err(|e| warn!(?e, ?p, "Unable to parse"))
-                        .ok()
-                })
-                .map(|md: MirrorDefinitions| md.mirrors)
-        })
-        .unwrap_or_else(|| {
-            vec![
-                Url::parse("https://download.opensuse.org").unwrap(),
-                Url::parse("https://mirrorcache.opensuse.org").unwrap(),
-                Url::parse("https://mirrorcache-au.opensuse.org").unwrap(),
-                Url::parse("https://mirrorcache-us.opensuse.org").unwrap(),
-            ]
-        });
+    let md: MirrorDefinitions = match config.mirror_definitions.and_then(|p| {
+        fs::File::open(&p)
+            .map_err(|e| {
+                warn!(?e, ?p, "Unable to open");
+            })
+            .ok()
+            .map(BufReader::new)
+            .and_then(|rdr| {
+                serde_json::from_reader(rdr)
+                    .map_err(|e| warn!(?e, ?p, "Unable to parse"))
+                    .ok()
+            })
+    }) {
+        Some(l) => l,
+        None => {
+            error!("Unable to access mirror pool list, refusing to proceed");
+            std::process::exit(1);
+        }
+    };
 
-    let mut profiled = Vec::with_capacity(mirrors.len());
+    let known_m: Vec<Url> = md
+        .mirrors
+        .iter()
+        .chain(md.replaceable.iter())
+        .cloned()
+        .collect();
 
-    for url in mirrors.iter() {
+    let mut profiled = Vec::with_capacity(md.mirrors.len());
+
+    for url in md.mirrors.iter() {
         let r = mirror_latency(url.host_str().unwrap()).await;
         if let Some(lat) = r {
             profiled.push((lat, url))
@@ -207,10 +246,10 @@ async fn main() {
         debug!("{:?} - {}", mp.0, mp.1.as_str())
     }
 
-    let m = match profiled.pop() {
+    let m: Url = match profiled.pop() {
         Some((l, m)) => {
             info!("Selected - {} - time={:?}", m.as_str(), l);
-            m
+            m.clone()
         }
         None => {
             error!("Mirror profiling failed!");
@@ -245,8 +284,35 @@ async fn main() {
 
     // Rewrite things.
     paths.iter().for_each(|p| {
-        rewrite_mirror(p, &m, &mirrors);
+        rewrite_mirror(p, &m, &known_m);
     });
 
     // wait, if we have files to change, update them.
+
+    let (tx, rx) = channel();
+    let mut watcher = match watcher(tx, Duration::from_millis(250)) {
+        Ok(w) => w,
+        Err(e) => {
+            error!(?e, "Unable to create inotify watcher");
+            std::process::exit(1);
+        }
+    };
+
+    if let Err(e) = watcher.watch("/etc/zypp/repos.d", RecursiveMode::Recursive) {
+        error!(?e, "Unable to create inotify watcher for /etc/zypp/repos.d");
+        std::process::exit(1);
+    };
+
+    let handle = task::spawn_blocking(move || inotify_watcher(rx, m, known_m));
+
+    info!("🔮 watching /etc/zypp/repos.d for changes ...");
+
+    tokio::select! {
+        Ok(()) = signal::ctrl_c() => {}
+        // _ = app.listen(listener) => {}
+    }
+
+    drop(watcher);
+
+    let _ = handle.await;
 }

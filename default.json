@@ -1,8 +1,0 @@
-{
-  "mirrors": [
-    "https://download.opensuse.org",
-    "https://mirrorcache.opensuse.org",
-    "https://mirrorcache-au.opensuse.org",
-    "https://mirrorcache-us.opensuse.org"
-  ]
-}
