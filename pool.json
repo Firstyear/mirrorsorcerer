@@ -5,6 +5,7 @@
   "mirrors": [
     "https://mirrorcache.opensuse.org",
     "https://mirrorcache-au.opensuse.org",
-    "https://mirrorcache-us.opensuse.org"
+    "https://mirrorcache-us.opensuse.org",
+    "https://mirrorcache-jp.opensuse.org"
   ]
 }
