@@ -90,6 +90,53 @@ async fn mirror_latency(h: &str) -> Option<Duration> {
     None
 }
 
+fn rewrite_zyppconf() {
+    info!("Updating zypp.conf to have safe options.");
+
+    let backup = Path::new("/etc/zypp/zypp.conf.msbak");
+    if !backup.exists() {
+        if let Err(e) = fs::copy("/etc/zypp/zypp.conf", backup) {
+            error!(?e, "Unable to backup zypp.conf original.");
+            return;
+        } else {
+            info!("Backed up /etc/zypp/zypp.conf -> /etc/zypp/zypp.conf.msbak");
+        }
+    }
+
+    let mut zyppconf = match ini::Ini::load_from_file("/etc/zypp/zypp.conf") {
+        Ok(r) => {
+            let mut dump: Vec<u8> = Vec::new();
+            let _ = r.write_to(&mut dump);
+            let dump = unsafe { String::from_utf8_unchecked(dump) };
+            debug!(%dump);
+            r
+        }
+        Err(e) => {
+            warn!(?e, "Failed to load /etc/zypp/zypp.conf");
+            return;
+        }
+    };
+
+    match zyppconf.section_mut(Some("main")) {
+        Some(sect) => {
+            // Seems wayyy too aggressive, default is 10
+            sect.insert("repo.refresh.delay", "15");
+            // Prevent chunking which tanks performance.
+            sect.insert("download.max_concurrent_connections", "1");
+            // This is a foot-nuclear-rpg-gun.
+            sect.insert("commit.downloadMode", "DownloadInAdvance");
+        }
+        None => {
+            warn!("No main section in /etc/zypp/zypp.conf");
+            return;
+        }
+    }
+
+    if let Err(e) = zyppconf.write_to_file("/etc/zypp/zypp.conf") {
+        warn!(?e, "Unable to write /etc/zypp/zypp.conf configuration");
+    }
+}
+
 fn rewrite_mirror(p: &Path, m: &Url, known_m: &[Url]) {
     if p.extension().and_then(|s| s.to_str()) != Some("repo") {
         debug!(?p, "Ignoring");
@@ -266,6 +313,10 @@ async fn main() {
         return;
     }
 
+    // Update zypper config to select non-shit options. There are
+    // some really unsafe and slow options that it chooses ...
+    rewrite_zyppconf();
+
     // Profile the mirror latencies, since latency is the single
     // largest issues in zypper metadata access.
 
@@ -290,7 +341,7 @@ async fn main() {
         rewrite_mirror(p, &m, &known_m);
     });
 
-    if !config.oneshot {
+    if config.oneshot {
         return;
     }
 
