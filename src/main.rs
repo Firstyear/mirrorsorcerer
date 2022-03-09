@@ -120,7 +120,8 @@ fn rewrite_zyppconf() {
     match zyppconf.section_mut(Some("main")) {
         Some(sect) => {
             // Seems wayyy too aggressive, default is 10
-            sect.insert("repo.refresh.delay", "15");
+            // set to 18 hours, should allow once-a-day refresh
+            sect.insert("repo.refresh.delay", "1080");
             // Prevent chunking which tanks performance.
             sect.insert("download.max_concurrent_connections", "1");
             // This is a foot-nuclear-rpg-gun.
