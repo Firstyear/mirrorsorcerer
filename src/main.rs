@@ -231,9 +231,9 @@ struct Config {
     #[structopt(short = "x")]
     /// Do it - profile mirrors and update repos. Without this, a dry-run is performed.
     doit: bool,
-    #[structopt(short = "1")]
-    /// One shot - don't persist and watch the repo directory. Useful in container pipelines.
-    oneshot: bool,
+    #[structopt(short = "d")]
+    /// Daemon mode - persist and watch the repo directory. Useful in servers/systems.
+    daemon: bool,
 }
 
 #[tokio::main(flavor = "current_thread")]
@@ -255,19 +255,25 @@ async fn main() {
 
     let config = Config::from_args();
 
-    let md: MirrorDefinitions = match config.mirror_definitions.and_then(|p| {
-        fs::File::open(&p)
-            .map_err(|e| {
-                warn!(?e, ?p, "Unable to open");
-            })
-            .ok()
-            .map(BufReader::new)
-            .and_then(|rdr| {
-                serde_json::from_reader(rdr)
-                    .map_err(|e| warn!(?e, ?p, "Unable to parse"))
-                    .ok()
-            })
-    }) {
+    let mirror_def_path = config.mirror_definitions.unwrap_or_else(|| {
+        PathBuf::from(if cfg!(debug_assertions) {
+            "./pool.json"
+        } else {
+            "/usr/share/mirrorsorcerer/pool.json"
+        })
+    });
+
+    let md: MirrorDefinitions = match fs::File::open(&mirror_def_path)
+        .map_err(|e| {
+            warn!(?e, ?mirror_def_path, "Unable to open");
+        })
+        .ok()
+        .map(BufReader::new)
+        .and_then(|rdr| {
+            serde_json::from_reader(rdr)
+                .map_err(|e| warn!(?e, ?mirror_def_path, "Unable to parse"))
+                .ok()
+        }) {
         Some(l) => l,
         None => {
             error!("Unable to access mirror pool list, refusing to proceed");
@@ -314,6 +320,12 @@ async fn main() {
         return;
     }
 
+    if users::get_effective_uid() != 0 {
+        info!("not running as root, not changing /etc/zypp/repos.d");
+        info!("To update your mirrors re-run with 'sudo'");
+        return;
+    }
+
     // Update zypper config to select non-shit options. There are
     // some really unsafe and slow options that it chooses ...
     rewrite_zyppconf();
@@ -342,7 +354,7 @@ async fn main() {
         rewrite_mirror(p, &m, &known_m);
     });
 
-    if config.oneshot {
+    if !config.daemon {
         return;
     }
 
