@@ -12,6 +12,10 @@ use tracing_subscriber::prelude::*;
 use tracing_subscriber::{fmt, EnvFilter};
 use url::Url;
 
+use std::fs::File;
+use std::io::BufRead;
+use std::io::Seek;
+
 use notify::{watcher, DebouncedEvent, RecursiveMode, Watcher};
 use std::sync::mpsc::{channel, Receiver};
 
@@ -138,6 +142,41 @@ fn rewrite_zyppconf() {
     }
 }
 
+fn crc32c_path(p: &Path) -> Option<u32> {
+    let mut file = File::open(p).ok()?;
+
+    file.seek(std::io::SeekFrom::Start(0))
+        .map_err(|e| {
+            error!("Unable to seek tempfile -> {:?}", e);
+        })
+        .ok()?;
+
+    let mut buf_file = BufReader::with_capacity(8192, file);
+    let mut crc = 0;
+    loop {
+        match buf_file.fill_buf() {
+            Ok(buffer) => {
+                let length = buffer.len();
+                if length == 0 {
+                    // We are done!
+                    break;
+                } else {
+                    // we have content, proceed.
+                    crc = crc32c::crc32c_append(crc, &buffer);
+                    buf_file.consume(length);
+                }
+            }
+            Err(e) => {
+                error!("Bufreader error -> {:?}", e);
+                return None;
+            }
+        }
+    }
+    debug!("crc32c is: {:x}", crc);
+
+    Some(crc)
+}
+
 fn rewrite_mirror(p: &Path, m: &Url, known_m: &[Url]) {
     if p.extension().and_then(|s| s.to_str()) != Some("repo") {
         debug!(?p, "Ignoring");
@@ -145,6 +184,24 @@ fn rewrite_mirror(p: &Path, m: &Url, known_m: &[Url]) {
     } else {
         debug!("Inspecting {:?} ...", p);
     }
+
+    let backup = p.with_extension("msbak");
+    if !backup.exists() {
+        if let Err(e) = fs::copy(p, &backup) {
+            error!(?e, "Unable to backup {:?} original.", p);
+            return;
+        } else {
+            info!("Backed up {:?} -> {:?}", p, backup);
+        }
+    }
+
+    let crc_pre = match crc32c_path(p) {
+        Some(c) => c,
+        None => {
+            error!("Unable to verify {:?} original.", p);
+            return;
+        }
+    };
 
     let mut repo = match ini::Ini::load_from_file(p) {
         Ok(r) => {
@@ -210,6 +267,22 @@ fn rewrite_mirror(p: &Path, m: &Url, known_m: &[Url]) {
             baseurl.as_str()
         );
         sect.insert("baseurl", baseurl);
+    }
+
+    let crc_post = match crc32c_path(p) {
+        Some(c) => c,
+        None => {
+            error!("Unable to verify {:?} original.", p);
+            return;
+        }
+    };
+
+    if crc_pre != crc_post {
+        error!(
+            "File changed while we were reading it! {} != {}",
+            crc_pre, crc_post
+        );
+        return;
     }
 
     if let Err(e) = repo.write_to_file(p) {
@@ -361,7 +434,7 @@ async fn main() {
     // wait, if we have files to change, update them.
 
     let (tx, rx) = channel();
-    let mut watcher = match watcher(tx, Duration::from_millis(250)) {
+    let mut watcher = match watcher(tx, Duration::from_secs(2)) {
         Ok(w) => w,
         Err(e) => {
             error!(?e, "Unable to create inotify watcher");
