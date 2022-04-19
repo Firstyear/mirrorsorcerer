@@ -41,7 +41,10 @@ async fn mirror_latency(h: &str) -> Option<Duration> {
 
     let mut addrs: Vec<_> = format!("{}:443", h)
         .to_socket_addrs()
-        .unwrap()
+        .map_err(|_e| {
+            warn!("Unable to resolve {} to an ip address.", h);
+        })
+        .ok()?
         .map(|sa| sa.ip())
         .collect();
 
