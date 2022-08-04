@@ -1,9 +1,9 @@
 {
   "replaceable": [],
   "mirrors": [
-                    "http://ftp.fau.de",
+    "http://ftp.fau.de",
     "http://ftp.halifax.rwth-aachen.de",
     "http://ftp.gwdg.de/pub/linux/misc",
-  "http://mirror.karneval.cz/pub/linux"
+    "http://mirror.karneval.cz/pub/linux"
   ]
 }

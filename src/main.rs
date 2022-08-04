@@ -327,7 +327,7 @@ async fn main() {
         .with(fmt_layer)
         .init();
 
-    info!("✨ Mirror Sorcerer ✨ ");
+    info!("Mirror Sorcerer ✨🪄🪞 ✨ ");
 
     let config = Config::from_args();
 
