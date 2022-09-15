@@ -28,8 +28,7 @@ not altered. If you add new repositories, they are dynamically updated.
 The primary way to use this will be to install it and allow it to run at boot
 
     zypper in mirrorsorcerer
-    systemctl enable mirrorsorcerer
-    systemctl start mirrorsorcerer
+    systemctl enable --now mirrorsorcerer
 
 If you wish to define a custom mirror list that should be profiled instead:
 
