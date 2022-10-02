@@ -23,6 +23,10 @@ to determine the fastest repositories for your system.
 This will only update mirrors that are provided by OpenSUSE. Custom mirrors are
 not altered. If you add new repositories, they are dynamically updated.
 
+## What Users are Saying
+
+* "It [mirrorsorcerer] is miraculous ... I went from downloading from OpenSUSE and OBS at 1MiB/s to 10~20MiB/s"
+
 ## Details
 
 The primary way to use this will be to install it and allow it to run at boot
@@ -57,6 +61,11 @@ To enable debug logging if you have an issue
     [Service]
     Environment=RUST_LOG=debug
 
+## Limitations
+
+Currently mirrorsorcerer only improves behaviour of official OpenSUSE mirrors. Third party mirrors
+are not supported.
+
 ## Undoing the changes
 
 Mirrorsorcerer is careful to make backups before making changes.
@@ -71,7 +80,7 @@ and how mirrorsorcerer alters that behaviour.
 
 ### Repository Metadata
 
-Zypper connects to and expects to be redirected. The "primary" redirection service is based in the EU.
+Zypper connects to a mirror and expects to be redirected. The "primary" redirection service is based in the EU.
 Two redirectors exist. download.opensuse.org (mirrorbrain) and mirrorcache.opensuse.org (mirrorcache).
 mirrorbrain will return metalink file, mirrorcache returns http redirects.
 
@@ -164,7 +173,8 @@ By directing zypper to a local redirector instead of going through download.open
 the major source of latency, and prevent the connection open/close issue on the intermediate 302 host.
 In theory from our former experiment this should reduce the install from 11.75 seconds to 8.6 seconds
 however in reality this change is actually far better. The install time is reduced to 6.6 seconds.
-That is a saving of 5.15 seconds, 44% of the original execution time.
+That is a saving of 5.15 seconds, 44% of the original execution time. A zypper refresh also benefits
+from this, now taking 15.1 seconds to complete instead of 32 seconds.
 
 ### Issues mirrorsorcerer can NOT prevent
 
@@ -173,7 +183,7 @@ is *range requests*.
 
 *You can work around this today by setting ZYPP_MULTICURL=0 in your environment*
 
-In some situations, zypper will attempt to "strip" downloads with range requests over multiple mirrors.
+In some situations, zypper will attempt to "stripe" downloads with range requests over multiple mirrors.
 For example, when retrieving libgio, we can see the metalink xml:
 
     GET /distribution/leap/15.4/repo/oss/x86_64/libgio-2_0-0-2.70.4-150400.1.5.x86_64.rpm HTTP/1.1
