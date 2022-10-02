@@ -290,6 +290,12 @@ fn rewrite_mirror(p: &Path, m: &Url, known_m: &[Url]) {
 
     if let Err(e) = repo.write_to_file(p) {
         warn!(?e, ?p, "Unable to write repo configuration");
+    } else {
+        info!("Successfully wrote to {:?}", p);
+        let mut dump: Vec<u8> = Vec::new();
+        let _ = repo.write_to(&mut dump);
+        let dump = unsafe { String::from_utf8_unchecked(dump) };
+        debug!(%dump);
     }
 }
 
@@ -327,7 +333,7 @@ async fn main() {
         .with(fmt_layer)
         .init();
 
-    info!("Mirror Sorcerer ✨🪄🪞 ✨ ");
+    info!("Mirror Sorcerer 🪄 🪞 ✨ ");
 
     let config = Config::from_args();
 
@@ -363,6 +369,9 @@ async fn main() {
         .chain(md.replaceable.iter())
         .cloned()
         .collect();
+
+    // Profile the mirror latencies, since latency is the single
+    // largest issues in zypper metadata access.
 
     let mut profiled = Vec::with_capacity(md.mirrors.len());
 
@@ -405,9 +414,6 @@ async fn main() {
     // Update zypper config to select non-shit options. There are
     // some really unsafe and slow options that it chooses ...
     rewrite_zyppconf();
-
-    // Profile the mirror latencies, since latency is the single
-    // largest issues in zypper metadata access.
 
     let entries = match fs::read_dir("/etc/zypp/repos.d") {
         Ok(e) => e,
