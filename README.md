@@ -61,7 +61,8 @@ To enable debug logging if you have an issue
 
 Mirrorsorcerer is careful to make backups before making changes.
 
-
+Repo files are copied to `/etc/zypp/repos.d/*.msbak` containing their original content.
+All customisations to zypp.conf are preserved when changing it. Original is backed up to /etc/zypp/zypp.conf.msbak
 
 ## Why Mirrorsorcerer - Technical Details
 
