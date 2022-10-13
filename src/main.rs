@@ -230,7 +230,7 @@ fn rewrite_mirror(p: &Path, m: &Url, known_m: &[Url]) {
                     p,
                     name.unwrap_or("global")
                 );
-                continue;
+                return;
             }
         };
 
@@ -257,7 +257,7 @@ fn rewrite_mirror(p: &Path, m: &Url, known_m: &[Url]) {
                 "Not updating {} - not a known mirror base",
                 baseurl.as_str()
             );
-            continue;
+            return;
         }
 
         let _ = baseurl.set_port(m.port());
