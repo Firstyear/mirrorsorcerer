@@ -4,6 +4,7 @@
 [Unit]
 Description=Mirror Sorcerer ✨ 🪄 🪞 ✨
 After=chronyd.service ntpd.service network-online.target
+Requisite=network-online.target
 
 [Service]
 Type=simple
@@ -11,6 +12,9 @@ User=root
 Environment=MIRROR_DEFS=/usr/share/mirrorsorcerer/pool.json
 ExecStart=/usr/sbin/mirrorsorcerer -x -d
 KillSignal=SIGINT
+
+RestartSec=300s
+Restart=on-failure
 
 NoNewPrivileges=true
 PrivateTmp=true
