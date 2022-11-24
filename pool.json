@@ -1,15 +1,15 @@
 {
   "replaceable": [
-    "https://download.opensuse.org",
-    "https://cache.opensuse.net.br"
-  ],
-  "mirrors": [
-    "https://mirrorcache.opensuse.org",
+    "https://cache.opensuse.net.br",
     "https://mirrorcache-au.opensuse.org",
     "https://mirrorcache-us.opensuse.org",
     "https://mirrorcache-jp.opensuse.org",
     "https://mirrorcache-us-east.opensuse.org",
     "https://mirrorcache-us-west.opensuse.org",
-    "https://mirrorcache-br.opensuse.org"
+    "https://mirrorcache-br.opensuse.org",
+    "https://mirrorcache.opensuse.org"
+  ],
+  "mirrors": [
+    "https://download.opensuse.org"
   ]
 }
