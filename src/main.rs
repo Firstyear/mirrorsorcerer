@@ -316,6 +316,10 @@ struct Config {
     #[structopt(short = "d")]
     /// Daemon mode - persist and watch the repo directory. Useful in servers/systems.
     daemon: bool,
+    #[structopt(short = "u")]
+    /// Upstream - undo all mirror changes, treating all mirror values as replaceable and returning
+    /// them to "download.opensuse.org".
+    upstream: bool,
 }
 
 #[tokio::main(flavor = "current_thread")]
@@ -363,41 +367,60 @@ async fn main() {
         }
     };
 
-    let known_m: Vec<Url> = md
-        .mirrors
-        .iter()
-        .chain(md.replaceable.iter())
-        .cloned()
-        .collect();
+    let (known_mirrors, selected_mirror) = if config.upstream {
+        let known_m: Vec<Url> = md
+            .mirrors
+            .iter()
+            .chain(md.replaceable.iter())
+            .cloned()
+            .collect();
 
-    // Profile the mirror latencies, since latency is the single
-    // largest issues in zypper metadata access.
+        let mirror = Url::parse("https://download.opensuse.org")
+            .expect("Invalid upstream mirror");
 
-    let mut profiled = Vec::with_capacity(md.mirrors.len());
+        info!("Setting mirrors to upstream default. {}", mirror);
 
-    for url in md.mirrors.iter() {
-        let r = mirror_latency(url.host_str().unwrap()).await;
-        if let Some(lat) = r {
-            profiled.push((lat, url))
+        (known_m, mirror)
+    } else {
+        let known_m: Vec<Url> = md
+            .mirrors
+            .iter()
+            .chain(md.replaceable.iter())
+            .cloned()
+            .collect();
+
+        // Profile the mirror latencies, since latency is the single
+        // largest issues in zypper metadata access.
+
+        let mut profiled = Vec::with_capacity(md.mirrors.len());
+
+        for url in md.mirrors.iter() {
+            let r = mirror_latency(url.host_str().unwrap()).await;
+            if let Some(lat) = r {
+                profiled.push((lat, url))
+            }
         }
-    }
 
-    profiled.sort_unstable_by(|a, b| a.0.cmp(&b.0).reverse());
+        profiled.sort_unstable_by(|a, b| a.0.cmp(&b.0).reverse());
 
-    for mp in profiled.iter() {
-        debug!("{:?} - {}", mp.0, mp.1.as_str())
-    }
-
-    let m: Url = match profiled.pop() {
-        Some((l, m)) => {
-            info!("Selected - {} - time={:?}", m.as_str(), l);
-            m.clone()
+        for mp in profiled.iter() {
+            debug!("{:?} - {}", mp.0, mp.1.as_str())
         }
-        None => {
-            error!("Mirror profiling failed!");
-            std::process::exit(1);
-        }
+
+        let m: Url = match profiled.pop() {
+            Some((l, m)) => {
+                info!("Selected - {} - time={:?}", m.as_str(), l);
+                m.clone()
+            }
+            None => {
+                error!("Mirror profiling failed!");
+                std::process::exit(1);
+            }
+        };
+
+        (known_m, m)
     };
+
 
     if !config.doit {
         info!("do it not requested, not changing /etc/zypp/repos.d");
@@ -433,7 +456,7 @@ async fn main() {
 
     // Rewrite things.
     paths.iter().for_each(|p| {
-        rewrite_mirror(p, &m, &known_m);
+        rewrite_mirror(p, &selected_mirror, &known_mirrors);
     });
 
     if !config.daemon {
@@ -456,7 +479,7 @@ async fn main() {
         std::process::exit(1);
     };
 
-    let handle = task::spawn_blocking(move || inotify_watcher(rx, m, known_m));
+    let handle = task::spawn_blocking(move || inotify_watcher(rx, selected_mirror, known_mirrors));
 
     info!("🔮 watching /etc/zypp/repos.d for changes ...");
 
