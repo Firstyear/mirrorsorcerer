@@ -1,6 +1,6 @@
 [package]
 name = "mirrorsorcerer"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2021"
 
 description = "Mirror Sorcerer tool to magically make OpenSUSE mirror sources more magic-er"
