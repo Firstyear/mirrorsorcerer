@@ -1,7 +1,8 @@
 {
   "replaceable": [
     "https://download.opensuse.org",
-    "https://cache.opensuse.net.br"
+    "https://cache.opensuse.net.br",
+    "https://cdn.opensuse.org"
   ],
   "mirrors": [
     "https://mirrorcache-au.opensuse.org",
