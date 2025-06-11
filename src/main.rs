@@ -375,8 +375,7 @@ async fn main() {
             .cloned()
             .collect();
 
-        let mirror = Url::parse("https://download.opensuse.org")
-            .expect("Invalid upstream mirror");
+        let mirror = Url::parse("https://download.opensuse.org").expect("Invalid upstream mirror");
 
         info!("Setting mirrors to upstream default. {}", mirror);
 
@@ -421,14 +420,13 @@ async fn main() {
         (known_m, m)
     };
 
-
     if !config.doit {
         info!("do it not requested, not changing /etc/zypp/repos.d");
         info!("To update your mirrors re-run with '-x'");
         return;
     }
 
-    if users::get_effective_uid() != 0 {
+    if uzers::get_effective_uid() != 0 {
         info!("not running as root, not changing /etc/zypp/repos.d");
         info!("To update your mirrors re-run with 'sudo'");
         return;
